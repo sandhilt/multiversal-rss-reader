@@ -1,6 +1,10 @@
+use std::error::Error;
 use std::fs::File;
-use std::io::BufReader;
-use xml::reader::{EventReader, XmlEvent};
+use std::io::{BufReader, Read};
+use xml::attribute::OwnedAttribute;
+use xml::name::OwnedName;
+use xml::namespace::Namespace;
+use xml::reader::{ErrorKind, EventReader, XmlEvent};
 
 struct Link {
     rel: Option<String>,
@@ -22,24 +26,37 @@ struct Entry {
     title: String,
 }
 
-fn main() -> std::io::Result<()> {
-    let f = File::open("rss.xml")?;
+fn read_xml_file(file_path: &str) -> Result<EventReader<impl Read>, Box<dyn Error>> {
+    let f = File::open(file_path)?;
     let file = BufReader::new(f);
-
     let parser = EventReader::new(file);
+    Ok(parser)
+}
+
+fn parse_element(name: OwnedName, attributes: Vec<OwnedAttribute>, namespace: Namespace) {
+    println!("Row: Element: {name:?}, attributes: {attributes:?}, namespace: {namespace:?}");
+}
+
+fn main() -> Result<(), Box<dyn Error>> {
+    let feed = read_xml_file("rss.xml")?;
 
     let mut depth = 0;
-    for e in parser {
-        match e {
-            Ok(XmlEvent::StartElement { name, .. }) => {
+    for event in feed {
+        match event {
+            Ok(XmlEvent::StartElement {
+                name,
+                attributes,
+                namespace,
+            }) => {
+                parse_element(name.clone(), attributes, namespace);
                 let local = name.local_name;
-                println!("{:spaces$}+{local}", "", spaces = depth * 2);
+                // println!("{:spaces$}+{local}", "", spaces = depth * 2);
                 depth += 1;
             }
             Ok(XmlEvent::EndElement { name }) => {
                 let local = name.local_name;
+                // println!("{:spaces$}-{local}", "", spaces = depth * 2);
                 depth -= 1;
-                println!("{:spaces$}-{local}", "", spaces = depth * 2);
             }
             Err(e) => {
                 eprintln!("Error: {e}");
@@ -51,4 +68,19 @@ fn main() -> std::io::Result<()> {
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_import_opml() {
+        unimplemented!();
+    }
+
+    #[test]
+    fn test_add_rss_feed() {
+        unimplemented!();
+    }
 }

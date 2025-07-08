@@ -1,10 +1,14 @@
-use std::error::Error;
-use std::fs::File;
-use std::io::{BufReader, Read};
-use xml::attribute::OwnedAttribute;
-use xml::name::OwnedName;
-use xml::namespace::Namespace;
-use xml::reader::{ErrorKind, EventReader, XmlEvent};
+use std::{
+    error::Error,
+    fs::File,
+    io::{self, BufReader, Read},
+};
+use xml::{
+    attribute::OwnedAttribute,
+    name::OwnedName,
+    namespace::Namespace,
+    reader::{EventReader, XmlEvent},
+};
 
 struct Link {
     rel: Option<String>,
@@ -26,11 +30,10 @@ struct Entry {
     title: String,
 }
 
-fn read_xml_file(file_path: &str) -> Result<EventReader<impl Read>, Box<dyn Error>> {
-    let f = File::open(file_path)?;
-    let file = BufReader::new(f);
-    let parser = EventReader::new(file);
-    Ok(parser)
+fn read_xml_file(file_path: &str) -> Result<EventReader<impl Read>, io::Error> {
+    File::open(file_path)
+        .map(BufReader::new)
+        .map(EventReader::new)
 }
 
 fn parse_element(name: OwnedName, attributes: Vec<OwnedAttribute>, namespace: Namespace) {
@@ -38,29 +41,39 @@ fn parse_element(name: OwnedName, attributes: Vec<OwnedAttribute>, namespace: Na
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let feed = read_xml_file("rss.xml")?;
+    let mut feed = read_xml_file("rss.xml")?;
 
     let mut depth = 0;
     for event in feed {
         match event {
+            Ok(XmlEvent::StartDocument {
+                version,
+                encoding,
+                standalone,
+            }) => {
+                println!(
+                    "Start Document: version: {version}, encoding: {encoding:?}, standalone: {standalone:?}"
+                );
+            }
+            Ok(XmlEvent::EndDocument) => {
+                println!("End Document");
+            }
             Ok(XmlEvent::StartElement {
                 name,
                 attributes,
                 namespace,
             }) => {
                 parse_element(name.clone(), attributes, namespace);
-                let local = name.local_name;
-                // println!("{:spaces$}+{local}", "", spaces = depth * 2);
+                println!("{:spaces$}+{name}", "", spaces = depth * 2);
                 depth += 1;
             }
             Ok(XmlEvent::EndElement { name }) => {
-                let local = name.local_name;
-                // println!("{:spaces$}-{local}", "", spaces = depth * 2);
+                println!("{:spaces$}-{name}", "", spaces = depth * 2);
                 depth -= 1;
             }
             Err(e) => {
-                eprintln!("Error: {e}");
-                break;
+                eprintln!("Error reading XML: {e}");
+                return Err(Box::new(e));
             }
             // There's more: https://docs.rs/xml-rs/latest/xml/reader/enum.XmlEvent.html
             _ => {}
